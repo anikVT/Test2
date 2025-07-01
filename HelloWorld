@@ -1,0 +1,36 @@
+import torch
+import torch.nn as nn
+import math
+
+class PositionalEncoding(nn.Module):
+    def __init__(self, seq_len=5, num_tokens=230, embed_dim=768, use_spatial=True):
+        super(PositionalEncoding, self).__init__()
+        self.embed_dim = embed_dim
+        self.use_spatial = use_spatial
+        
+        # Temporal positional encoding (shape: [1, seq_len, 1, embed_dim])
+        pe_time = torch.zeros(seq_len, embed_dim)
+        position_t = torch.arange(0, seq_len).unsqueeze(1)  # (seq_len, 1)
+        div_term = torch.exp(torch.arange(0, embed_dim, 2) * (-math.log(10000.0) / embed_dim))
+        pe_time[:, 0::2] = torch.sin(position_t * div_term)
+        pe_time[:, 1::2] = torch.cos(position_t * div_term)
+        pe_time = pe_time.unsqueeze(0).unsqueeze(2)  # (1, seq_len, 1, embed_dim)
+        self.register_buffer('pe_time', pe_time)
+
+        if use_spatial:
+            # Spatial positional encoding (shape: [1, 1, num_tokens, embed_dim])
+            pe_space = torch.zeros(num_tokens, embed_dim)
+            position_s = torch.arange(0, num_tokens).unsqueeze(1)
+            pe_space[:, 0::2] = torch.sin(position_s * div_term)
+            pe_space[:, 1::2] = torch.cos(position_s * div_term)
+            pe_space = pe_space.unsqueeze(0).unsqueeze(1)  # (1, 1, num_tokens, embed_dim)
+            self.register_buffer('pe_space', pe_space)
+        else:
+            self.pe_space = None
+
+    def forward(self, x):
+        # x shape: (batch_size, seq_len, num_tokens, embed_dim)
+        x = x + self.pe_time  # Add temporal encoding
+        if self.use_spatial:
+            x = x + self.pe_space  # Add spatial encoding
+        return x
