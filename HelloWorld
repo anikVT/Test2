@@ -45,3 +45,35 @@ mask = torch.triu(torch.ones(T, T) * float('-inf'), diagonal=1).to(input.device)
 # Apply attention with mask to preserve autoregressive behavior
 attn_output = self_attn(query=input, key=input, value=input, attn_mask=mask)
 
+
+---+
+# Input: (B, T, N, D)
+x = x.view(B, T*N, D)  # Shape: (B, T*N, D)
+
+
+
+import torch
+
+B, T, N, D = 2, 5, 230, 768
+seq_len = T * N  # Total tokens per sequence
+
+# Step 1: Get time indices for each token
+# Each group of N tokens belongs to 1 time step
+time_indices = torch.arange(T).repeat_interleave(N)  # Shape: (T*N,)
+
+# Step 2: Compare time indices to build causal mask
+# We want: token i can only attend to token j if time[j] <= time[i]
+causal_mask = (time_indices[None, :] <= time_indices[:, None])  # Shape: (T*N, T*N)
+
+# Step 3: Convert to float mask for attention
+attn_mask = torch.where(causal_mask, torch.zeros_like(causal_mask, dtype=torch.float),
+                        torch.full_like(causal_mask, float('-inf')))
+
+
+
+from torch.nn import MultiheadAttention
+
+mha = MultiheadAttention(embed_dim=D, num_heads=8, batch_first=True)
+
+# Input x: (B, T*N, D), mask: (T*N, T*N)
+attn_output, attn_weights = mha(x, x, x, attn_mask=attn_mask)
